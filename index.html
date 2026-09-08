@@ -4,89 +4,139 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>3D Lathe Machine Simulator</title>
+<script>
+  // Apply saved/system theme before first paint to avoid a flash of the wrong theme.
+  (function(){
+    try{
+      var saved = localStorage.getItem("lathe-theme");
+      if(saved === "light" || saved === "dark"){
+        document.documentElement.setAttribute("data-theme", saved);
+      }
+    }catch(e){}
+  })();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
+  /* ---- Light theme (default) ---- */
   :root{
-    --bg:#0e1420; --panel:#161f2e; --panel2:#1d2740; --border:#2a3650;
-    --text:#e7edf7; --muted:#93a2bf; --accent:#4da3ff; --good:#3ecf8e;
-    --warn:#f5b942; --bad:#f2495c; --track:#2a3650;
+    --bg:#eef1f6; --panel:#ffffff; --panel2:#eef1f7; --border:#c3ccdb;
+    --text:#12161f; --muted:#4a5568; --accent:#0057b3; --accent-ink:#ffffff;
+    --good:#00714f; --warn:#7a4b00; --bad:#9c2f0f;
+    --good-fill:#0f8f68; --warn-fill:#c97e00; --bad-fill:#c23f16;
+    --track:#d7deea; --focus:#0057b3; --input-bg:#ffffff;
+    --shadow:0 6px 18px rgba(20,30,50,.10);
   }
+  /* ---- Dark theme: system preference ---- */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b0f17; --panel:#141b28; --panel2:#1b2434; --border:#33415c;
+      --text:#f3f6fb; --muted:#aeb9cc; --accent:#6cb6ff; --accent-ink:#03101f;
+      --good:#37e3ab; --warn:#ffc262; --bad:#ff8f77;
+      --good-fill:#12a97b; --warn-fill:#d98a00; --bad-fill:#d94a1f;
+      --track:#293350; --focus:#6cb6ff; --input-bg:#0f1622;
+      --shadow:0 6px 18px rgba(0,0,0,.35);
+    }
+  }
+  /* ---- Dark theme: manual override ---- */
+  :root[data-theme="dark"]{
+    --bg:#0b0f17; --panel:#141b28; --panel2:#1b2434; --border:#33415c;
+    --text:#f3f6fb; --muted:#aeb9cc; --accent:#6cb6ff; --accent-ink:#03101f;
+    --good:#37e3ab; --warn:#ffc262; --bad:#ff8f77;
+    --good-fill:#12a97b; --warn-fill:#d98a00; --bad-fill:#d94a1f;
+    --track:#293350; --focus:#6cb6ff; --input-bg:#0f1622;
+    --shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
-    font-family:'Segoe UI',Roboto,Arial,sans-serif;overflow:hidden;}
+    font-family:Tahoma,Verdana,"Segoe UI",Arial,sans-serif;overflow:hidden;}
   #app{position:relative;width:100vw;height:100vh;}
   #canvasWrap{position:absolute;inset:0;}
   canvas{display:block;}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px;}
 
-  #topbar{position:absolute;top:0;left:0;right:0;padding:10px 16px;
-    background:linear-gradient(180deg,rgba(10,14,22,.92),rgba(10,14,22,0));
-    display:flex;align-items:center;justify-content:space-between;pointer-events:none;z-index:5;}
-  #topbar h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.3px;color:var(--text);}
-  #topbar .sub{font-size:11px;color:var(--muted);}
+  #topbar{position:absolute;top:0;left:0;right:340px;padding:10px 16px;
+    background:linear-gradient(180deg,var(--bg) 0%,transparent 100%);
+    display:flex;align-items:flex-start;pointer-events:none;z-index:5;}
+  #topbar h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.3px;color:var(--text);}
+  #topbar .sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
 
   #panel{position:absolute;top:0;right:0;bottom:0;width:340px;max-width:92vw;
     background:var(--panel);border-left:1px solid var(--border);
     overflow-y:auto;z-index:10;padding:14px 14px 24px;}
-  #panel h1{font-size:15px;margin:2px 0 12px;color:var(--text);}
+  .panelHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  #panel h1{font-size:15px;margin:0;color:var(--text);}
+  #themeToggle{display:flex;align-items:center;gap:6px;padding:6px 11px;
+    border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);
+    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+  #themeToggle:hover{filter:brightness(1.08);}
   .grp{background:var(--panel2);border:1px solid var(--border);border-radius:10px;
     padding:12px;margin-bottom:12px;}
   .grp h2{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);
     margin:0 0 10px;font-weight:700;}
   .row{margin-bottom:10px;}
   .row:last-child{margin-bottom:0;}
-  label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;}
-  label span.val{color:var(--text);font-weight:600;}
+  label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:4px;}
+  label span.val{color:var(--text);font-weight:700;}
   input[type=range]{width:100%;accent-color:var(--accent);height:18px;}
-  select{width:100%;padding:7px 8px;background:#101827;color:var(--text);
-    border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  select{width:100%;padding:7px 8px;background:var(--input-bg);color:var(--text);
+    border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;}
   .tools{display:flex;gap:8px;}
-  .toolbtn{flex:1;padding:8px 4px;text-align:center;border:1px solid var(--border);
-    border-radius:6px;background:#101827;color:var(--muted);font-size:12px;cursor:pointer;user-select:none;}
-  .toolbtn.active{background:var(--accent);color:#08101f;border-color:var(--accent);font-weight:700;}
+  .toolbtn{flex:1;padding:8px 4px;text-align:center;border:2px solid var(--border);
+    border-radius:6px;background:var(--input-bg);color:var(--muted);font-size:12px;cursor:pointer;
+    user-select:none;font-weight:600;}
+  .toolbtn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:800;}
+  .toolbtn.active::before{content:'\2713  ';}
   .toggle{display:flex;align-items:center;justify-content:space-between;}
-  .switch{position:relative;width:44px;height:24px;background:#101827;border:1px solid var(--border);
+  .toggle .swlabel{display:flex;align-items:center;gap:8px;}
+  .swstate{font-size:11px;font-weight:800;letter-spacing:.4px;color:var(--muted);min-width:26px;text-align:right;}
+  .switch{position:relative;width:46px;height:25px;background:var(--input-bg);border:2px solid var(--border);
     border-radius:20px;cursor:pointer;flex-shrink:0;}
-  .switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
     background:var(--muted);transition:.15s;}
-  .switch.on{background:#164a34;border-color:var(--good);}
-  .switch.on::after{left:22px;background:var(--good);}
+  .switch.on{background:var(--good-fill);border-color:var(--good-fill);}
+  .switch.on::after{left:23px;background:#ffffff;}
   .btnrow{display:flex;gap:8px;}
-  button.act{flex:1;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;
-    cursor:pointer;letter-spacing:.2px;}
-  .btn-start{background:var(--good);color:#06251a;}
-  .btn-stop{background:#39435a;color:var(--text);}
-  .btn-reset{background:#39435a;color:var(--text);}
-  .btn-danger{background:var(--bad);color:#2a0509;}
-  button.act:disabled{opacity:.4;cursor:not-allowed;}
-  button.act:hover:not(:disabled){filter:brightness(1.1);}
+  button.act{flex:1;padding:10px;border:2px solid transparent;border-radius:8px;font-size:13px;font-weight:800;
+    cursor:pointer;letter-spacing:.2px;font-family:inherit;}
+  .btn-start{background:var(--good-fill);color:#ffffff;}
+  .btn-start::before{content:'\25B6  ';}
+  .btn-stop{background:transparent;color:var(--text);border-color:var(--border);}
+  .btn-stop::before{content:'\25A0  ';}
+  .btn-reset{background:transparent;color:var(--text);border-color:var(--border);}
+  button.act:disabled{opacity:.42;cursor:not-allowed;}
+  button.act:hover:not(:disabled){filter:brightness(1.08);}
 
-  .readout .r{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;
-    border-bottom:1px dashed rgba(255,255,255,.06);}
+  .readout .r{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;
+    border-bottom:1px dashed var(--border);}
   .readout .r:last-child{border-bottom:none;}
   .readout .r .k{color:var(--muted);}
-  .readout .r .v{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+  .readout .r .v{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;}
 
-  .meter{height:8px;border-radius:5px;background:var(--track);overflow:hidden;margin-top:4px;}
-  .meter > i{display:block;height:100%;width:0%;background:var(--good);transition:width .15s linear,background .3s;}
+  .meter{height:9px;border-radius:5px;background:var(--track);overflow:hidden;margin-top:4px;
+    border:1px solid var(--border);}
+  .meter > i{display:block;height:100%;width:0%;background:var(--good-fill);transition:width .15s linear,background .3s;}
 
-  #status{border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.4;
-    border:1px solid var(--border);background:#101827;color:var(--muted);min-height:20px;}
-  #status.ok{border-color:var(--good);color:#bdf5d8;}
-  #status.warn{border-color:var(--warn);color:#ffe3ab;}
-  #status.bad{border-color:var(--bad);color:#ffc3c9;font-weight:600;}
+  #status{border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.4;font-weight:600;
+    border:2px solid var(--border);background:var(--panel2);color:var(--muted);min-height:20px;}
+  #status.ok{border-color:var(--good-fill);color:var(--good);}
+  #status.warn{border-color:var(--warn-fill);color:var(--warn);}
+  #status.bad{border-color:var(--bad-fill);color:var(--bad);font-weight:800;}
 
   .legend{font-size:11px;color:var(--muted);columns:2;column-gap:10px;}
   .legend div{break-inside:avoid;padding:1px 0;}
   .legend b{color:var(--text);}
 
-  #hint{position:absolute;left:16px;bottom:14px;font-size:11px;color:var(--muted);
-    background:rgba(10,14,22,.55);padding:6px 10px;border-radius:6px;z-index:5;pointer-events:none;}
+  #hint{position:absolute;left:16px;bottom:14px;font-size:11.5px;color:var(--text);
+    background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:6px;
+    z-index:5;pointer-events:none;box-shadow:var(--shadow);}
 
   @media (max-width:760px){
     #panel{width:100vw;height:52vh;top:auto;bottom:0;left:0;right:0;border-left:none;
       border-top:1px solid var(--border);}
     #canvasWrap{bottom:52vh;}
+    #topbar{right:0;}
   }
 </style>
 </head>
@@ -94,7 +144,7 @@
 <div id="app">
   <div id="canvasWrap"></div>
   <div id="topbar">
-    <div>
+    <div class="titles">
       <h1>3D Lathe Machine Simulator</h1>
       <div class="sub">Drag to orbit · scroll to zoom</div>
     </div>
@@ -102,7 +152,12 @@
   <div id="hint">Set parameters on the right, pick a tool, then Start Cutting.</div>
 
   <div id="panel">
-    <h1>Lathe Controls</h1>
+    <div class="panelHead">
+      <h1>Lathe Controls</h1>
+      <button id="themeToggle" type="button" aria-label="Switch between light and dark theme">
+        <span id="themeIcon" aria-hidden="true">&#9728;</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
 
     <div class="grp">
       <h2>Tool</h2>
@@ -145,7 +200,10 @@
       </div>
       <div class="row toggle">
         <label style="margin:0;">Cutting Fluid (Coolant)</label>
-        <div class="switch" id="coolantSwitch"></div>
+        <div class="swlabel">
+          <span class="swstate" id="coolantState">OFF</span>
+          <div class="switch" id="coolantSwitch" role="switch" aria-checked="false" tabindex="0" aria-label="Cutting fluid"></div>
+        </div>
       </div>
     </div>
 
@@ -297,10 +355,42 @@ docSlider.addEventListener("input", ()=>{
   $("docVal").textContent = state.doc.toFixed(1)+" mm";
 });
 
-coolantSwitch.addEventListener("click", ()=>{
-  state.coolant = !state.coolant;
-  coolantSwitch.classList.toggle("on", state.coolant);
+function setCoolant(on){
+  state.coolant = on;
+  coolantSwitch.classList.toggle("on", on);
+  coolantSwitch.setAttribute("aria-checked", on ? "true" : "false");
+  $("coolantState").textContent = on ? "ON" : "OFF";
+}
+coolantSwitch.addEventListener("click", ()=> setCoolant(!state.coolant));
+coolantSwitch.addEventListener("keydown", (e)=>{
+  if(e.key===" " || e.key==="Enter"){ e.preventDefault(); setCoolant(!state.coolant); }
 });
+
+/* ---------------- Theme toggle (light / dark) ---------------- */
+const themeToggleBtn = $("themeToggle"), themeIcon = $("themeIcon"), themeLabel = $("themeLabel");
+function systemPrefersDark(){
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function currentTheme(){
+  const attr = document.documentElement.getAttribute("data-theme");
+  if(attr==="light" || attr==="dark") return attr;
+  return systemPrefersDark() ? "dark" : "light";
+}
+function applyThemeUI(){
+  const t = currentTheme();
+  const isDark = t==="dark";
+  themeIcon.innerHTML = isDark ? "&#9789;" : "&#9728;"; // moon / sun
+  themeLabel.textContent = isDark ? "Dark" : "Light";
+  themeToggleBtn.setAttribute("aria-pressed", isDark ? "true" : "false");
+}
+themeToggleBtn.addEventListener("click", ()=>{
+  const next = currentTheme()==="dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try{ localStorage.setItem("lathe-theme", next); }catch(e){}
+  applyThemeUI();
+  if(typeof updateSceneTheme === "function") updateSceneTheme();
+});
+applyThemeUI();
 
 startBtn.addEventListener("click", ()=>{
   if(state.toolBroken || state.workpieceBroken){ return; }
@@ -341,9 +431,10 @@ newStockBtn.addEventListener("click", ()=>{
   setStatus("New workpiece loaded. Ready to start.", "idle");
 });
 
+const STATUS_ICON = { ok:"✓ ", warn:"⚠ ", bad:"✕ ", idle:"● " };
 function setStatus(msg, level){
   state.statusMsg = msg; state.statusLevel = level;
-  statusEl.textContent = msg;
+  statusEl.textContent = (STATUS_ICON[level] || STATUS_ICON.idle) + msg;
   statusEl.className = level==="ok" ? "ok" : level==="warn" ? "warn" : level==="bad" ? "bad" : "";
 }
 
@@ -437,10 +528,23 @@ const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(2000,2000),
   new THREE.MeshStandardMaterial({color:0x11182a, roughness:1})
 );
+
+/* keep the 3D viewport in sync with the light/dark theme */
+const SCENE_THEME_COLORS = {
+  dark:  { bg:0x0b0f17, floor:0x121a2a },
+  light: { bg:0xcfd8e3, floor:0xb9c3d1 },
+};
+function updateSceneTheme(){
+  const c = SCENE_THEME_COLORS[currentTheme()];
+  scene.background.setHex(c.bg);
+  scene.fog.color.setHex(c.bg);
+  floor.material.color.setHex(c.floor);
+}
 floor.rotation.x=-Math.PI/2;
 floor.position.y=-2;
 floor.receiveShadow = true;
 scene.add(floor);
+updateSceneTheme();
 
 /* ---------- Materials ---------- */
 const M = {
@@ -964,10 +1068,10 @@ function updateReadout(){
   const heatPct = Math.min(100,state.heat);
   const heatBar = $("heatMeter");
   heatBar.style.width = heatPct+"%";
-  heatBar.style.background = heatPct>80?"var(--bad)":heatPct>55?"var(--warn)":"var(--good)";
+  heatBar.style.background = heatPct>80?"var(--bad-fill)":heatPct>55?"var(--warn-fill)":"var(--good-fill)";
   const chBar = $("chatterMeter");
   chBar.style.width = Math.min(100,state.chatterRisk)+"%";
-  chBar.style.background = state.chatterRisk>70?"var(--bad)":state.chatterRisk>40?"var(--warn)":"var(--good)";
+  chBar.style.background = state.chatterRisk>70?"var(--bad-fill)":state.chatterRisk>40?"var(--warn-fill)":"var(--good-fill)";
 }
 
 /* ============================ COOLANT EMISSION ============================ */

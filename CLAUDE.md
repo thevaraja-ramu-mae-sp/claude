@@ -41,6 +41,36 @@ setup seems better.
    BrightSpace won't grant, and keep all state/storage client-side
    (e.g. `localStorage`, in-memory JS) since there is no backend.
 
+## Accessibility & Styling
+
+These rules apply to all text/UI in the project and override general styling
+defaults, same as the constraints above.
+
+1. **Font.** All text must use Tahoma as the primary typeface, with a safe
+   fallback stack for systems where Tahoma isn't installed (e.g.
+   `font-family: Tahoma, Verdana, "Segoe UI", sans-serif;`). Apply this
+   globally (e.g. on `body`), not just to isolated elements.
+
+2. **Light and dark theme.** The page must support both a light and a dark
+   theme, not just one fixed look. Default to the user's OS preference via
+   `prefers-color-scheme`, and provide a manual toggle (persisted in
+   `localStorage`) so a student can override it regardless of device
+   settings. Implement themes with CSS custom properties (variables) swapped
+   per theme rather than duplicating styles.
+
+3. **Low-vision-friendly colors.** Students with poor/low vision must be
+   able to use the page comfortably:
+   - Meet WCAG AA contrast at minimum — 4.5:1 for normal text, 3:1 for large
+     text and meaningful UI components/icons — in *both* themes.
+   - Never use color as the only signal. Any status/state conveyed by color
+     (success/warning/danger, safe/unsafe, on/off, etc.) must also be
+     conveyed by text, an icon/symbol, or position — not color alone.
+   - Use a colorblind-safe palette for anything categorical (avoid
+     red/green as the only distinguishing pair; prefer combinations
+     distinguishable under deuteranopia/protanopia/tritanopia).
+   - Keep body text reasonably large (≥14px) and avoid low-contrast
+     placeholder-gray-on-gray text.
+
 ## Working conventions
 
 - Before implementing any non-trivial feature, ask clarifying questions about
