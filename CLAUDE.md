@@ -96,3 +96,21 @@ defaults, same as the constraints above.
   building them — so effort isn't wasted on scope that might still change.
   Confirm with the user before treating something as a placeholder if it's
   not obvious which parts are lower priority.
+
+## Version safety (undo)
+
+`index.html` gets overwritten in place — there is deliberately no
+`archive/` folder and no `YYMMDD_HHMMSS_index.html` copies. Instead, git
+commit history is the undo mechanism:
+
+- Commit after every meaningful change (not just at the end of a session),
+  with a clear message describing what changed. A commit is a permanent,
+  restorable snapshot — once it's committed, that version is never lost,
+  even after `index.html` is later overwritten many times over.
+- Before a large or risky rewrite of `index.html`, make sure the current
+  state is committed first, so there's a clean snapshot to fall back to.
+- Don't rely on uncommitted working-tree state as a save point — only a
+  commit is guaranteed recoverable.
+- Branches are for isolating in-progress/experimental work from the
+  reviewed main line, not required just to make changes undoable — plain
+  commits on one branch already give full history and recovery.
