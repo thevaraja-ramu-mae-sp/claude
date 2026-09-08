@@ -71,8 +71,28 @@ defaults, same as the constraints above.
    - Keep body text reasonably large (≥14px) and avoid low-contrast
      placeholder-gray-on-gray text.
 
+4. **Minimal, clean interface.** Favor a minimal, uncluttered UI over a
+   busy/decorative one: generous whitespace, a restrained color palette,
+   no unnecessary chrome, borders, gradients, icons, or animation. Only show
+   controls/information the student actually needs for the task at hand.
+   When in doubt, cut an element rather than add one.
+
 ## Working conventions
 
 - Before implementing any non-trivial feature, ask clarifying questions about
   scope, edge cases, and constraints first — don't propose a plan until
   you've asked.
+
+- For the first few times a new interface/page is built in this project,
+  don't jump straight to writing the final `index.html`. First present a
+  few quick options — different layouts, color palettes, visual styles —
+  as lightweight descriptions or sketches, and let the user pick a
+  direction before implementing it for real.
+
+- Don't default to building everything requested in one pass. When a
+  request is large, ask which parts matter most, and/or implement the
+  lower-priority parts as clearly-labeled placeholders (e.g. a stub
+  section, a "coming soon" control, a TODO comment) instead of fully
+  building them — so effort isn't wasted on scope that might still change.
+  Confirm with the user before treating something as a placeholder if it's
+  not obvious which parts are lower priority.
