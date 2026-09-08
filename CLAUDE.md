@@ -40,3 +40,9 @@ setup seems better.
    navigation, avoid features that require secure/cross-origin contexts
    BrightSpace won't grant, and keep all state/storage client-side
    (e.g. `localStorage`, in-memory JS) since there is no backend.
+
+## Working conventions
+
+- Before implementing any non-trivial feature, ask clarifying questions about
+  scope, edge cases, and constraints first — don't propose a plan until
+  you've asked.
