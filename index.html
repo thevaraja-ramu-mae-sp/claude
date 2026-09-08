@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Lathe Machine Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root{
+    --bg:#0e1420; --panel:#161f2e; --panel2:#1d2740; --border:#2a3650;
+    --text:#e7edf7; --muted:#93a2bf; --accent:#4da3ff; --good:#3ecf8e;
+    --warn:#f5b942; --bad:#f2495c; --track:#2a3650;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:'Segoe UI',Roboto,Arial,sans-serif;overflow:hidden;}
+  #app{position:relative;width:100vw;height:100vh;}
+  #canvasWrap{position:absolute;inset:0;}
+  canvas{display:block;}
+
+  #topbar{position:absolute;top:0;left:0;right:0;padding:10px 16px;
+    background:linear-gradient(180deg,rgba(10,14,22,.92),rgba(10,14,22,0));
+    display:flex;align-items:center;justify-content:space-between;pointer-events:none;z-index:5;}
+  #topbar h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.3px;color:var(--text);}
+  #topbar .sub{font-size:11px;color:var(--muted);}
+
+  #panel{position:absolute;top:0;right:0;bottom:0;width:340px;max-width:92vw;
+    background:var(--panel);border-left:1px solid var(--border);
+    overflow-y:auto;z-index:10;padding:14px 14px 24px;}
+  #panel h1{font-size:15px;margin:2px 0 12px;color:var(--text);}
+  .grp{background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+    padding:12px;margin-bottom:12px;}
+  .grp h2{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);
+    margin:0 0 10px;font-weight:700;}
+  .row{margin-bottom:10px;}
+  .row:last-child{margin-bottom:0;}
+  label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  label span.val{color:var(--text);font-weight:600;}
+  input[type=range]{width:100%;accent-color:var(--accent);height:18px;}
+  select{width:100%;padding:7px 8px;background:#101827;color:var(--text);
+    border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  .tools{display:flex;gap:8px;}
+  .toolbtn{flex:1;padding:8px 4px;text-align:center;border:1px solid var(--border);
+    border-radius:6px;background:#101827;color:var(--muted);font-size:12px;cursor:pointer;user-select:none;}
+  .toolbtn.active{background:var(--accent);color:#08101f;border-color:var(--accent);font-weight:700;}
+  .toggle{display:flex;align-items:center;justify-content:space-between;}
+  .switch{position:relative;width:44px;height:24px;background:#101827;border:1px solid var(--border);
+    border-radius:20px;cursor:pointer;flex-shrink:0;}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:var(--muted);transition:.15s;}
+  .switch.on{background:#164a34;border-color:var(--good);}
+  .switch.on::after{left:22px;background:var(--good);}
+  .btnrow{display:flex;gap:8px;}
+  button.act{flex:1;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;
+    cursor:pointer;letter-spacing:.2px;}
+  .btn-start{background:var(--good);color:#06251a;}
+  .btn-stop{background:#39435a;color:var(--text);}
+  .btn-reset{background:#39435a;color:var(--text);}
+  .btn-danger{background:var(--bad);color:#2a0509;}
+  button.act:disabled{opacity:.4;cursor:not-allowed;}
+  button.act:hover:not(:disabled){filter:brightness(1.1);}
+
+  .readout .r{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;
+    border-bottom:1px dashed rgba(255,255,255,.06);}
+  .readout .r:last-child{border-bottom:none;}
+  .readout .r .k{color:var(--muted);}
+  .readout .r .v{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+
+  .meter{height:8px;border-radius:5px;background:var(--track);overflow:hidden;margin-top:4px;}
+  .meter > i{display:block;height:100%;width:0%;background:var(--good);transition:width .15s linear,background .3s;}
+
+  #status{border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.4;
+    border:1px solid var(--border);background:#101827;color:var(--muted);min-height:20px;}
+  #status.ok{border-color:var(--good);color:#bdf5d8;}
+  #status.warn{border-color:var(--warn);color:#ffe3ab;}
+  #status.bad{border-color:var(--bad);color:#ffc3c9;font-weight:600;}
+
+  .legend{font-size:11px;color:var(--muted);columns:2;column-gap:10px;}
+  .legend div{break-inside:avoid;padding:1px 0;}
+  .legend b{color:var(--text);}
+
+  #hint{position:absolute;left:16px;bottom:14px;font-size:11px;color:var(--muted);
+    background:rgba(10,14,22,.55);padding:6px 10px;border-radius:6px;z-index:5;pointer-events:none;}
+
+  @media (max-width:760px){
+    #panel{width:100vw;height:52vh;top:auto;bottom:0;left:0;right:0;border-left:none;
+      border-top:1px solid var(--border);}
+    #canvasWrap{bottom:52vh;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasWrap"></div>
+  <div id="topbar">
+    <div>
+      <h1>3D Lathe Machine Simulator</h1>
+      <div class="sub">Drag to orbit · scroll to zoom</div>
+    </div>
+  </div>
+  <div id="hint">Set parameters on the right, pick a tool, then Start Cutting.</div>
+
+  <div id="panel">
+    <h1>Lathe Controls</h1>
+
+    <div class="grp">
+      <h2>Tool</h2>
+      <div class="tools">
+        <div class="toolbtn active" data-tool="turning">Turning Tool</div>
+        <div class="toolbtn" data-tool="facing">Facing Tool</div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Workpiece</h2>
+      <div class="row">
+        <label>Material <span class="val" id="materialVal">Mild Steel</span></label>
+        <select id="material">
+          <option value="mildsteel">Mild Steel</option>
+          <option value="aluminum">Aluminum</option>
+          <option value="brass">Brass</option>
+          <option value="stainless">Stainless Steel</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Diameter <span class="val" id="diaVal">40 mm</span></label>
+        <input type="range" id="diameter" min="15" max="80" step="1" value="40">
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Cutting Parameters</h2>
+      <div class="row">
+        <label>Spindle Speed <span class="val" id="rpmVal">600 RPM</span></label>
+        <input type="range" id="rpm" min="50" max="2000" step="10" value="600">
+      </div>
+      <div class="row">
+        <label>Feedrate <span class="val" id="feedVal">0.20 mm/rev</span></label>
+        <input type="range" id="feed" min="0" max="100" step="0.05" value="0.2">
+      </div>
+      <div class="row">
+        <label>Depth of Cut <span class="val" id="docVal">1.0 mm</span></label>
+        <input type="range" id="doc" min="0" max="10" step="0.1" value="1.0">
+      </div>
+      <div class="row toggle">
+        <label style="margin:0;">Cutting Fluid (Coolant)</label>
+        <div class="switch" id="coolantSwitch"></div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Machine</h2>
+      <div class="btnrow">
+        <button class="act btn-start" id="startBtn">Start Cutting</button>
+        <button class="act btn-stop" id="stopBtn" disabled>Stop</button>
+      </div>
+      <div class="btnrow" style="margin-top:8px;">
+        <button class="act btn-reset" id="replaceToolBtn" disabled>Replace Tool</button>
+        <button class="act btn-reset" id="newStockBtn" disabled>Load New Workpiece</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Status</h2>
+      <div id="status">Machine idle. Ready to start.</div>
+    </div>
+
+    <div class="grp readout">
+      <h2>Live Readout</h2>
+      <div class="r"><span class="k">Surface Speed</span><span class="v" id="vcVal">0 m/min</span></div>
+      <div class="r"><span class="k">Cutting Force</span><span class="v" id="fcVal">0 N</span></div>
+      <div class="r"><span class="k">Spindle Power</span><span class="v" id="pVal">0.0 kW</span></div>
+      <div class="row">
+        <label>Heat / Thermal Load <span class="val" id="heatValNum">0%</span></label>
+        <div class="meter"><i id="heatMeter"></i></div>
+      </div>
+      <div class="row">
+        <label>Chatter Risk <span class="val" id="chatterValNum">0%</span></label>
+        <div class="meter"><i id="chatterMeter"></i></div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Machine Parts Shown</h2>
+      <div class="legend">
+        <div><b>1</b> Head Stock</div><div><b>2</b> Chuck</div>
+        <div><b>3</b> Tool Post</div><div><b>4</b> Carriage</div>
+        <div><b>5</b> Tail Stock</div><div><b>6</b> Bed</div>
+        <div><b>7</b> Lead Screw</div><div><b>8</b> Feed Rod</div>
+        <div><b>9</b> Apron</div><div><b>10</b> Saddle</div>
+        <div><b>11</b> Cross Slide</div><div><b>12</b> Compound Rest</div>
+        <div><b>15</b> Hand Wheels</div><div><b>18</b> Live Center</div>
+        <div>Coolant Spout</div><div>Chip Tray</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ======================= MATERIAL / PHYSICS DATA ======================= */
+// Kc = specific cutting energy (N/mm^2) - higher = harder to cut, more force per mm^2 of chip
+// heatFactor = how fast heat builds per kW of cutting power
+// heatSensitivity = how little heat it takes to visibly damage the material
+// toolWear = multiplier on chatter risk (harder materials chatter more easily under load)
+const MATERIALS = {
+  mildsteel:  { name:"Mild Steel",     color:0x9aa4ad, Kc:2000, heatFactor:1.0, heatLimit:100, chatterK:1.0 },
+  aluminum:   { name:"Aluminum",       color:0xd7dde3, Kc:700,  heatFactor:0.6, heatLimit:130, chatterK:0.7 },
+  brass:      { name:"Brass",          color:0xc9a25c, Kc:600,  heatFactor:0.7, heatLimit:120, chatterK:0.75 },
+  stainless:  { name:"Stainless Steel",color:0xb9c2c9, Kc:2800, heatFactor:1.5, heatLimit:80,  chatterK:1.3 },
+};
+
+const TOOL_LIMITS = {
+  turning: { forceLimit: 2600, name:"Turning Tool" },
+  facing:  { forceLimit: 2000, name:"Facing Tool"  },
+};
+
+const HEAT_COOL_RATE = 55;      // heat % drained per second with coolant ON while cutting
+const HEAT_COOL_IDLE = 12;      // heat % drained per second with coolant ON while idle
+const HEAT_DECAY_NO_COOLANT = 2;// natural heat % drained per second without coolant
+const CHATTER_FATIGUE_LIMIT = 100; // sustained chatter score before tool fatigue break
+
+/* ============================ APP STATE ============================ */
+const state = {
+  tool: "turning",
+  material: "mildsteel",
+  diameter: 40,      // mm, current live diameter (shrinks while turning)
+  initialDiameter: 40,
+  length: 160,        // mm, current live length (shrinks while facing)
+  initialLength: 160,
+  rpm: 600,
+  feed: 0.2,          // mm/rev
+  doc: 1.0,            // mm
+  coolant: false,
+  running: false,
+  toolBroken: false,
+  workpieceBroken: false,
+  workpieceOverheated: false,
+  heat: 0,             // 0-100
+  chatterRisk: 0,       // 0-100 instantaneous
+  chatterFatigue: 0,    // 0-100 accumulated
+  turnProgress: 0,     // 0-1 how far turning cut has swept along length
+  faceProgress: 0,      // 0-1 how far facing cut has swept radially
+  vc: 0, fc: 0, power: 0,
+  statusMsg: "Machine idle. Ready to start.",
+  statusLevel: "idle",
+};
+
+const RING_COUNT = 48; // radial rings along workpiece length for turning gradient
+let ringRadii = new Array(RING_COUNT+1).fill(state.diameter/2);
+
+/* ============================ UI WIRING ============================ */
+const $ = (id)=>document.getElementById(id);
+const materialSel = $("material"), diameterSlider=$("diameter"), rpmSlider=$("rpm"),
+  feedSlider=$("feed"), docSlider=$("doc"), coolantSwitch=$("coolantSwitch"),
+  startBtn=$("startBtn"), stopBtn=$("stopBtn"), replaceToolBtn=$("replaceToolBtn"),
+  newStockBtn=$("newStockBtn"), statusEl=$("status");
+
+document.querySelectorAll(".toolbtn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    if(state.running) return;
+    document.querySelectorAll(".toolbtn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    state.tool = btn.dataset.tool;
+    updateToolVisibility();
+  });
+});
+
+materialSel.addEventListener("change", ()=>{
+  if(state.running) { materialSel.value = state.material; return; }
+  state.material = materialSel.value;
+  $("materialVal").textContent = MATERIALS[state.material].name;
+  applyMaterialColor();
+});
+
+diameterSlider.addEventListener("input", ()=>{
+  if(state.running) { diameterSlider.value = state.diameter; return; }
+  state.diameter = parseFloat(diameterSlider.value);
+  state.initialDiameter = state.diameter;
+  $("diaVal").textContent = state.diameter.toFixed(0)+" mm";
+  resetWorkpieceGeometry();
+});
+
+rpmSlider.addEventListener("input", ()=>{
+  state.rpm = parseFloat(rpmSlider.value);
+  $("rpmVal").textContent = state.rpm.toFixed(0)+" RPM";
+});
+feedSlider.addEventListener("input", ()=>{
+  state.feed = parseFloat(feedSlider.value);
+  $("feedVal").textContent = state.feed.toFixed(2)+" mm/rev";
+});
+docSlider.addEventListener("input", ()=>{
+  state.doc = parseFloat(docSlider.value);
+  $("docVal").textContent = state.doc.toFixed(1)+" mm";
+});
+
+coolantSwitch.addEventListener("click", ()=>{
+  state.coolant = !state.coolant;
+  coolantSwitch.classList.toggle("on", state.coolant);
+});
+
+startBtn.addEventListener("click", ()=>{
+  if(state.toolBroken || state.workpieceBroken){ return; }
+  ensureAudio();
+  state.running = true;
+  startBtn.disabled = true; stopBtn.disabled = false;
+  materialSel.disabled = true; diameterSlider.disabled = true;
+  document.querySelectorAll(".toolbtn").forEach(b=>b.style.pointerEvents="none");
+  setStatus("Cutting in progress...", "ok");
+});
+
+stopBtn.addEventListener("click", ()=>{
+  state.running = false;
+  startBtn.disabled = false; stopBtn.disabled = true;
+  materialSel.disabled = false; diameterSlider.disabled = false;
+  document.querySelectorAll(".toolbtn").forEach(b=>b.style.pointerEvents="auto");
+  if(!state.toolBroken && !state.workpieceBroken) setStatus("Stopped. Machine idle.", "idle");
+});
+
+replaceToolBtn.addEventListener("click", ()=>{
+  state.toolBroken = false;
+  state.chatterFatigue = 0;
+  replaceToolBtn.disabled = true;
+  toolBrokenVisual(false);
+  setStatus("Tool replaced. Ready to start.", "idle");
+});
+
+newStockBtn.addEventListener("click", ()=>{
+  state.workpieceBroken = false;
+  state.workpieceOverheated = false;
+  state.heat = 0;
+  state.diameter = state.initialDiameter;
+  state.length = state.initialLength;
+  state.turnProgress = 0; state.faceProgress = 0;
+  newStockBtn.disabled = true;
+  workpieceBrokenVisual(false);
+  resetWorkpieceGeometry();
+  setStatus("New workpiece loaded. Ready to start.", "idle");
+});
+
+function setStatus(msg, level){
+  state.statusMsg = msg; state.statusLevel = level;
+  statusEl.textContent = msg;
+  statusEl.className = level==="ok" ? "ok" : level==="warn" ? "warn" : level==="bad" ? "bad" : "";
+}
+
+/* ============================ AUDIO ============================ */
+let audioCtx=null, motorOsc=null, motorGain=null;
+function ensureAudio(){
+  if(audioCtx) return;
+  try{
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    motorOsc = audioCtx.createOscillator();
+    motorGain = audioCtx.createGain();
+    motorOsc.type="sawtooth";
+    motorOsc.frequency.value=40;
+    motorGain.gain.value=0;
+    motorOsc.connect(motorGain).connect(audioCtx.destination);
+    motorOsc.start();
+  }catch(e){ audioCtx=null; }
+}
+function updateMotorSound(){
+  if(!audioCtx) return;
+  const targetFreq = 30 + (state.rpm/2000)*90;
+  const targetGain = state.running ? 0.035 : 0.01;
+  motorOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.15);
+  motorGain.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.2);
+}
+function playBang(){
+  if(!audioCtx) return;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type="square"; o.frequency.value=90;
+  g.gain.value=0.3;
+  o.connect(g).connect(audioCtx.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.4);
+  o.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime+0.4);
+  o.stop(audioCtx.currentTime+0.4);
+}
+let screechNode=null;
+function setScreech(on){
+  if(!audioCtx) return;
+  if(on && !screechNode){
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type="sawtooth"; o.frequency.value=1400;
+    g.gain.value=0.02;
+    o.connect(g).connect(audioCtx.destination);
+    o.start();
+    screechNode={o,g};
+  } else if(!on && screechNode){
+    screechNode.g.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+    screechNode.o.stop(audioCtx.currentTime+0.3);
+    screechNode=null;
+  }
+}
+
+/* ============================ THREE.JS SCENE ============================ */
+const wrap = $("canvasWrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e1420);
+scene.fog = new THREE.Fog(0x0e1420, 900, 2200);
+
+const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth/wrap.clientHeight, 1, 5000);
+camera.position.set(320, 260, 430);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+renderer.shadowMap.enabled = true;
+wrap.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(110,25,0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 60;
+controls.maxDistance = 1200;
+controls.maxPolarAngle = Math.PI*0.49;
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 0.9);
+key.position.set(250,320,200);
+key.castShadow = true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-300; key.shadow.camera.right=300;
+key.shadow.camera.top=300; key.shadow.camera.bottom=-300;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
+fill.position.set(-200,120,-150);
+scene.add(fill);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(2000,2000),
+  new THREE.MeshStandardMaterial({color:0x11182a, roughness:1})
+);
+floor.rotation.x=-Math.PI/2;
+floor.position.y=-2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+/* ---------- Materials ---------- */
+const M = {
+  cast:   new THREE.MeshStandardMaterial({color:0x2b3550, metalness:0.5, roughness:0.55}),
+  castHi: new THREE.MeshStandardMaterial({color:0x35507a, metalness:0.5, roughness:0.4}),
+  steel:  new THREE.MeshStandardMaterial({color:0x8b93a3, metalness:0.8, roughness:0.3}),
+  darkSteel: new THREE.MeshStandardMaterial({color:0x4a5468, metalness:0.7, roughness:0.35}),
+  brass:  new THREE.MeshStandardMaterial({color:0xc9a24a, metalness:0.7, roughness:0.35}),
+  black:  new THREE.MeshStandardMaterial({color:0x1b2030, metalness:0.3, roughness:0.7}),
+  accent: new THREE.MeshStandardMaterial({color:0xe0522b, metalness:0.4, roughness:0.5}),
+  chrome: new THREE.MeshStandardMaterial({color:0xd9e2ee, metalness:0.9, roughness:0.15}),
+};
+function mkMesh(geo, mat, castShadow=true){
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = castShadow; m.receiveShadow = true;
+  return m;
+}
+
+/* ================= MACHINE GROUP (lathe axis = world X) ================= */
+// Layout along X: headstock/chuck at x=0 (left), tailstock at x=+240 (right)
+const machine = new THREE.Group();
+scene.add(machine);
+
+// 6. BED
+const bedLen = 300, bedW = 46, bedH = 14;
+const bed = mkMesh(new THREE.BoxGeometry(bedLen, bedH, bedW), M.cast);
+bed.position.set(bedLen/2-30, -bedH/2, 0);
+machine.add(bed);
+// bed ways (raised rails)
+for(const zoff of [-14,14]){
+  const way = mkMesh(new THREE.BoxGeometry(bedLen, 3, 6), M.chrome);
+  way.position.set(bedLen/2-30, 1.5, zoff);
+  machine.add(way);
+}
+// legs
+for(const xo of [10,240]){
+  const leg = mkMesh(new THREE.BoxGeometry(34, 46, bedW*0.9), M.black);
+  leg.position.set(xo, -bedH-23, 0);
+  machine.add(leg);
+}
+
+// 7. LEAD SCREW + 8. FEED ROD (thin cylinders below bed, front side)
+function makeRod(radius,color){
+  const rod = mkMesh(new THREE.CylinderGeometry(radius, radius, bedLen-40, 16), color);
+  rod.rotation.z = Math.PI/2;
+  return rod;
+}
+const leadScrew = makeRod(1.1, M.steel);
+leadScrew.position.set(bedLen/2-30, -bedH-2, 20);
+machine.add(leadScrew);
+const feedRod = makeRod(0.9, M.darkSteel);
+feedRod.position.set(bedLen/2-30, -bedH-2, 14);
+machine.add(feedRod);
+
+// 1. HEAD STOCK (fixed, at x=0)
+const headstock = new THREE.Group();
+headstock.position.set(-6, 0, 0);
+machine.add(headstock);
+const hsBody = mkMesh(new THREE.BoxGeometry(62, 58, 50), M.castHi);
+hsBody.position.set(0,29,0);
+headstock.add(hsBody);
+// change gear box detail (14. hand wheel-ish gears on front face)
+const gearBoxCover = mkMesh(new THREE.CylinderGeometry(11,11,4,24), M.darkSteel);
+gearBoxCover.rotation.x = Math.PI/2;
+gearBoxCover.position.set(-24,40,27);
+headstock.add(gearBoxCover);
+
+// 17. SPINDLE + 2. CHUCK (rotates)
+const spindleGroup = new THREE.Group();
+spindleGroup.position.set(28, 34, 0);
+headstock.add(spindleGroup);
+const spindleShaft = mkMesh(new THREE.CylinderGeometry(7,7,14,24), M.chrome);
+spindleShaft.rotation.z = Math.PI/2;
+spindleShaft.position.x = -6;
+spindleGroup.add(spindleShaft);
+
+const chuckGroup = new THREE.Group();
+spindleGroup.add(chuckGroup);
+const chuckBody = mkMesh(new THREE.CylinderGeometry(15,15,16,32), M.darkSteel);
+chuckBody.rotation.z = Math.PI/2;
+chuckGroup.add(chuckBody);
+// 3 chuck jaws
+const jaws = [];
+for(let i=0;i<3;i++){
+  const jaw = mkMesh(new THREE.BoxGeometry(6,7,7), M.chrome);
+  const ang = i*(Math.PI*2/3);
+  jaw.position.set(9, Math.cos(ang)*14, Math.sin(ang)*14);
+  jaw.userData.angle = ang;
+  chuckGroup.add(jaw);
+  jaws.push(jaw);
+}
+function updateJaws(radius){
+  const r = Math.max(radius+2, 6);
+  jaws.forEach(j=>{
+    j.position.y = Math.cos(j.userData.angle)*r;
+    j.position.z = Math.sin(j.userData.angle)*r;
+  });
+}
+
+// 5. TAIL STOCK + 18. LIVE CENTER (position depends on workpiece length)
+const tailstock = new THREE.Group();
+machine.add(tailstock);
+const tsBase = mkMesh(new THREE.BoxGeometry(26,10,36), M.cast);
+tsBase.position.y = 3;
+tailstock.add(tsBase);
+const tsBody = mkMesh(new THREE.BoxGeometry(30,30,32), M.castHi);
+tsBody.position.y = 23;
+tailstock.add(tsBody);
+const liveCenterCone = mkMesh(new THREE.ConeGeometry(6,16,24), M.chrome);
+liveCenterCone.rotation.z = -Math.PI/2;
+liveCenterCone.position.set(-24, 34, 0);
+tailstock.add(liveCenterCone);
+const tsQuill = mkMesh(new THREE.CylinderGeometry(5,5,16,20), M.steel);
+tsQuill.rotation.z = Math.PI/2;
+tsQuill.position.set(-8,34,0);
+tailstock.add(tsQuill);
+const tsHandwheel = mkMesh(new THREE.TorusGeometry(7,1.4,10,20), M.darkSteel); // 15. hand wheel
+tsHandwheel.position.set(15,23,18);
+tailstock.add(tsHandwheel);
+
+// 4. CARRIAGE (moves along X) = 10. Saddle + 9. Apron + 11. Cross Slide + 12. Compound Rest + 3. Tool Post
+const carriage = new THREE.Group();
+machine.add(carriage);
+const saddle = mkMesh(new THREE.BoxGeometry(28, 8, 50), M.cast); // 10 saddle
+saddle.position.y = 6;
+carriage.add(saddle);
+const apron = mkMesh(new THREE.BoxGeometry(22, 26, 12), M.castHi); // 9 apron
+apron.position.set(0,-11,26);
+carriage.add(apron);
+const apronWheel = mkMesh(new THREE.TorusGeometry(6,1.2,10,20), M.darkSteel); // 15 hand wheel
+apronWheel.rotation.y = Math.PI/2;
+apronWheel.position.set(0,-11,33);
+carriage.add(apronWheel);
+
+const crossSlide = new THREE.Group(); // 11 cross slide (moves along Z)
+crossSlide.position.set(0,10,0);
+carriage.add(crossSlide);
+const crossSlideMesh = mkMesh(new THREE.BoxGeometry(20,6,34), M.darkSteel);
+crossSlideMesh.position.y=3;
+crossSlide.add(crossSlideMesh);
+const crossHandwheel = mkMesh(new THREE.TorusGeometry(5,1,10,18), M.darkSteel); // 15
+crossHandwheel.rotation.x = Math.PI/2;
+crossHandwheel.position.set(0,3,20);
+crossSlide.add(crossHandwheel);
+
+const compoundRest = new THREE.Group(); // 12
+compoundRest.position.set(0,8,0);
+crossSlide.add(compoundRest);
+const compoundMesh = mkMesh(new THREE.CylinderGeometry(9,9,5,8), M.cast);
+compoundMesh.position.y=2.5;
+compoundRest.add(compoundMesh);
+const dial = mkMesh(new THREE.CylinderGeometry(3,3,2,20), M.chrome); // 13 graduated dial
+dial.position.set(6,4,0);
+compoundRest.add(dial);
+
+// 3. TOOL POST + tool bits (turning & facing) mounted on compound rest
+const toolPost = new THREE.Group();
+toolPost.position.set(0,7,0);
+compoundRest.add(toolPost);
+const toolPostBase = mkMesh(new THREE.CylinderGeometry(5,6,6,16), M.darkSteel);
+toolPostBase.position.y=3;
+toolPost.add(toolPostBase);
+
+function makeToolHolder(color){
+  const g = new THREE.Group();
+  const holder = mkMesh(new THREE.BoxGeometry(6,10,8), M.black);
+  holder.position.y = 9;
+  g.add(holder);
+  const bit = mkMesh(new THREE.BoxGeometry(10,3,4), color);
+  bit.position.set(6,4.5,0);
+  g.add(bit);
+  const tip = mkMesh(new THREE.ConeGeometry(1.6,4,4), M.chrome);
+  tip.rotation.z = -Math.PI/2;
+  tip.position.set(11,4.5,0);
+  g.add(tip);
+  g.userData.tip = tip;
+  return g;
+}
+const turningToolHolder = makeToolHolder(M.accent);
+turningToolHolder.position.set(2,6,10);
+toolPost.add(turningToolHolder);
+const facingToolHolder = makeToolHolder(new THREE.MeshStandardMaterial({color:0x2b8fd6,metalness:0.4,roughness:0.5}));
+facingToolHolder.position.set(2,6,-10);
+facingToolHolder.rotation.y = -Math.PI/2;
+toolPost.add(facingToolHolder);
+
+function updateToolVisibility(){
+  turningToolHolder.visible = state.tool==="turning";
+  facingToolHolder.visible = state.tool==="facing";
+}
+updateToolVisibility();
+
+// COOLANT SPOUT (fixed near tool area, above workpiece)
+const coolantSpout = new THREE.Group();
+machine.add(coolantSpout);
+const spoutArm = mkMesh(new THREE.CylinderGeometry(1.4,1.4,26,10), M.black);
+spoutArm.position.set(30, 55, 0);
+coolantSpout.add(spoutArm);
+const spoutNozzle = mkMesh(new THREE.CylinderGeometry(1,2,6,10), M.chrome);
+spoutNozzle.position.set(30, 41, 0);
+coolantSpout.add(spoutNozzle);
+
+// 19. CHIP TRAY under the cutting area
+const chipTray = mkMesh(new THREE.BoxGeometry(70,3,50), M.black);
+chipTray.position.set(30,-9,0);
+machine.add(chipTray);
+
+// 24/25 tool bit + tray already represented; simple label plaques skipped for perf.
+
+/* ---------------- WORKPIECE (cylinder, axis = X, held between chuck & live center) ---------------- */
+let workpiece = null;
+let workpieceMat = new THREE.MeshStandardMaterial({color:MATERIALS[state.material].color, metalness:0.6, roughness:0.4});
+
+function buildWorkpieceGeometry(length, radiiArray){
+  // Build a cylinder-like geometry along local Y then rotate object to align with X (lathe axis)
+  const geo = new THREE.CylinderGeometry(radiiArray[0], radiiArray[radiiArray.length-1], length, 28, RING_COUNT, false);
+  const pos = geo.attributes.position;
+  const R0 = radiiArray[0];
+  for(let i=0;i<pos.count;i++){
+    const y = pos.getY(i);
+    const t = Math.min(1, Math.max(0, (y + length/2)/length)); // 0..1 along length
+    const idx = Math.round(t*(radiiArray.length-1));
+    const targetR = Math.max(0.3, radiiArray[idx]);
+    const x = pos.getX(i), z = pos.getZ(i);
+    const curR = Math.sqrt(x*x+z*z);
+    if(curR > 0.0001){
+      const scale = targetR/curR;
+      pos.setX(i, x*scale);
+      pos.setZ(i, z*scale);
+    }
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function resetWorkpieceGeometry(){
+  ringRadii = new Array(RING_COUNT+1).fill(state.diameter/2);
+  rebuildWorkpieceMesh();
+  positionTailstockAndSpout();
+}
+
+function rebuildWorkpieceMesh(){
+  if(workpiece){ machine.remove(workpiece); workpiece.geometry.dispose(); }
+  const geo = buildWorkpieceGeometry(state.length, ringRadii);
+  workpiece = mkMesh(geo, workpieceMat);
+  workpiece.rotation.z = Math.PI/2; // align cylinder axis with world X
+  // position so chuck-end (local y=+length/2) sits at spindle nose (world x ~ 42)
+  workpiece.position.set(42 + state.length/2, 34, 0);
+  machine.add(workpiece);
+  updateJaws(state.diameter/2);
+}
+
+function applyMaterialColor(){
+  workpieceMat.color.setHex(MATERIALS[state.material].color);
+}
+
+function positionTailstockAndSpout(){
+  const freeEndX = 42 + state.length; // world x of free end (tailstock side)
+  tailstock.position.set(freeEndX + 30, 0, 0);
+  coolantSpout.position.set(0,0,0);
+}
+
+resetWorkpieceGeometry();
+applyMaterialColor();
+
+/* ---------------- Carriage position range along bed ---------------- */
+function carriageXRange(){
+  const startX = 40;               // near headstock/chuck face
+  const endX = 40 + state.length;  // near free end
+  return {startX, endX};
+}
+function updateCarriagePosition(){
+  const {startX,endX} = carriageXRange();
+  let x;
+  if(state.tool==="turning"){
+    // sweeps from free end (endX) toward chuck (startX) as turnProgress 0->1
+    x = endX - state.turnProgress*(endX-startX);
+    carriage.position.set(x, 0, 0);
+    crossSlide.position.z = 0; // no cross feed during turning pass
+  } else {
+    // facing: fixed at free end, cross slide sweeps radially (z acts as radial axis here for visual)
+    x = endX;
+    carriage.position.set(x, 0, 0);
+    const r = state.diameter/2;
+    crossSlide.position.z = r - state.faceProgress*(r); // sweeps from outer edge (r) to center (0)
+  }
+}
+updateCarriagePosition();
+
+/* ---------------- Particle systems: coolant / sparks / smoke ---------------- */
+function makeParticleSystem(count, size, color, opacity){
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count*3);
+  const velocities = [];
+  for(let i=0;i<count;i++){
+    positions[i*3]=0;positions[i*3+1]=-1000;positions[i*3+2]=0;
+    velocities.push(new THREE.Vector3());
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(positions,3));
+  const mat = new THREE.PointsMaterial({color, size, transparent:true, opacity});
+  const pts = new THREE.Points(geo, mat);
+  pts.userData.velocities = velocities;
+  pts.userData.life = new Float32Array(count);
+  pts.userData.cursor = 0;
+  pts.userData.count = count;
+  scene.add(pts);
+  return pts;
+}
+const coolantParticles = makeParticleSystem(150, 2.2, 0x4da3ff, 0.85);
+const sparkParticles = makeParticleSystem(120, 1.6, 0xffb347, 0.95);
+const smokeParticles = makeParticleSystem(90, 6, 0x8a8f9a, 0.5);
+
+function emitParticle(sys, origin, vel, life){
+  const i = sys.userData.cursor;
+  const pos = sys.geometry.attributes.position;
+  pos.setXYZ(i, origin.x, origin.y, origin.z);
+  sys.userData.velocities[i].copy(vel);
+  sys.userData.life[i] = life;
+  sys.userData.cursor = (i+1) % sys.userData.count;
+  pos.needsUpdate = true;
+}
+function stepParticles(sys, dt, gravity){
+  const pos = sys.geometry.attributes.position;
+  for(let i=0;i<sys.userData.count;i++){
+    if(sys.userData.life[i] > 0){
+      sys.userData.life[i] -= dt;
+      const v = sys.userData.velocities[i];
+      v.y += gravity*dt;
+      pos.setXYZ(i, pos.getX(i)+v.x*dt, pos.getY(i)+v.y*dt, pos.getZ(i)+v.z*dt);
+      if(sys.userData.life[i] <= 0){ pos.setY(i, -1000); }
+    }
+  }
+  pos.needsUpdate = true;
+}
+
+/* ---------------- Failure visuals ---------------- */
+let toolBrokenFlashT = 0;
+function toolBrokenVisual(on){
+  const activeHolder = state.tool==="turning" ? turningToolHolder : facingToolHolder;
+  activeHolder.visible = on ? false : (state.tool==="turning");
+  facingToolHolder.visible = state.tool==="facing" && !on;
+  if(on){
+    for(let i=0;i<40;i++){
+      emitParticle(sparkParticles,
+        new THREE.Vector3(carriage.position.x+10,34,0),
+        new THREE.Vector3((Math.random()-0.5)*60, Math.random()*40+10, (Math.random()-0.5)*60),
+        0.6+Math.random()*0.4);
+    }
+    playBang();
+  }
+}
+function workpieceBrokenVisual(on){
+  if(on){
+    workpieceMat.emissive = new THREE.Color(0x330000);
+    for(let i=0;i<50;i++){
+      emitParticle(sparkParticles,
+        new THREE.Vector3(workpiece.position.x,34,0),
+        new THREE.Vector3((Math.random()-0.5)*80, Math.random()*50, (Math.random()-0.5)*80),
+        0.8+Math.random()*0.5);
+    }
+    playBang();
+  } else {
+    workpieceMat.emissive = new THREE.Color(0x000000);
+  }
+}
+
+/* ============================ PHYSICS / SIMULATION STEP ============================ */
+function computePhysics(dt){
+  const mat = MATERIALS[state.material];
+  const D = state.diameter;
+  const vc = Math.PI * D * state.rpm / 1000; // m/min
+  const chipArea = state.feed * state.doc;   // mm^2
+  const fc = mat.Kc * chipArea;              // N
+  const power = (fc * vc) / 60000;           // kW
+
+  state.vc = vc; state.fc = fc; state.power = power;
+
+  if(!state.running || state.toolBroken || state.workpieceBroken){
+    // idle heat dissipation
+    if(state.coolant) state.heat = Math.max(0, state.heat - HEAT_COOL_IDLE*dt);
+    else state.heat = Math.max(0, state.heat - HEAT_DECAY_NO_COOLANT*dt);
+    state.chatterRisk = Math.max(0, state.chatterRisk - 40*dt);
+    updateMotorSound();
+    setScreech(false);
+    return;
+  }
+
+  const toolLimit = TOOL_LIMITS[state.tool].forceLimit;
+
+  // ---- immediate tool overload ----
+  if(fc > toolLimit){
+    triggerToolBreak(`Cutting force (${fc.toFixed(0)} N) exceeded the ${TOOL_LIMITS[state.tool].name} limit (${toolLimit} N). Reduce feedrate and/or depth of cut.`);
+    return;
+  }
+
+  // ---- heat accumulation ----
+  const heatGain = power * mat.heatFactor * 3;
+  const heatLoss = state.coolant ? HEAT_COOL_RATE : HEAT_DECAY_NO_COOLANT*0.3;
+  state.heat = Math.min(150, Math.max(0, state.heat + (heatGain-heatLoss)*dt));
+  if(state.heat >= mat.heatLimit){
+    triggerOverheat(`Workpiece overheated (thermal load ${state.heat.toFixed(0)}%) — ${mat.name} exceeded its safe heat limit. Turn on cutting fluid, or reduce spindle speed / depth of cut.`);
+    return;
+  }
+
+  // ---- chatter risk ----
+  const forceRatio = fc/toolLimit;
+  const slenderness = Math.min(4, Math.max(0.4, 50/D)); // thinner stock = more chatter-prone
+  const risk = Math.min(100, forceRatio*90*slenderness*mat.chatterK);
+  state.chatterRisk = state.chatterRisk*0.85 + risk*0.15;
+  setScreech(state.chatterRisk > 55);
+
+  if(state.chatterRisk > 55){
+    state.chatterFatigue += (state.chatterRisk-55)*dt*2.2;
+    if(state.chatterFatigue >= CHATTER_FATIGUE_LIMIT){
+      triggerToolBreak(`Sustained chatter caused tool fatigue failure. Reduce feedrate or increase spindle speed to move out of the chatter zone.`);
+      return;
+    }
+  } else {
+    state.chatterFatigue = Math.max(0, state.chatterFatigue - dt*15);
+  }
+
+  // ---- workpiece structural failure (thin stock + high force) ----
+  const bendingRisk = fc / Math.pow(D,2.1) * 12;
+  if(bendingRisk > 55 && D < 25){
+    triggerWorkpieceSnap(`Workpiece diameter (${D.toFixed(0)} mm) too thin to resist the cutting force (${fc.toFixed(0)} N) — it snapped. Use a larger diameter, lower feed, or shallower depth of cut.`);
+    return;
+  }
+
+  // ---- warnings (not failures yet) ----
+  if(fc > toolLimit*0.75){
+    setStatus(`Warning: cutting force is high (${fc.toFixed(0)}/${toolLimit} N). Tool overload imminent.`, "warn");
+  } else if(state.heat > mat.heatLimit*0.7){
+    setStatus(`Warning: thermal load rising (${state.heat.toFixed(0)}%). Consider coolant.`, "warn");
+  } else if(state.chatterRisk > 55){
+    setStatus(`Warning: chatter detected. Vibration may damage tool or finish.`, "warn");
+  } else {
+    setStatus("Cutting in progress — parameters within safe range.", "ok");
+  }
+
+  // ---- advance the cut geometry ----
+  const axialFeedRate = state.feed * (state.rpm/60); // mm/s
+  if(state.tool==="turning"){
+    const passLen = state.length;
+    state.turnProgress = Math.min(1, state.turnProgress + (axialFeedRate*dt)/Math.max(passLen,1));
+    applyTurningCut();
+    if(state.turnProgress >= 1){
+      // pass complete: commit new diameter, ready for next pass
+      state.diameter = Math.max(2, state.diameter - state.doc*2);
+      state.turnProgress = 0;
+      ringRadii = new Array(RING_COUNT+1).fill(state.diameter/2);
+    }
+  } else {
+    const radialFeedRate = state.feed * (state.rpm/60); // mm/s, radial sweep speed
+    const r0 = state.diameter/2;
+    state.faceProgress = Math.min(1, state.faceProgress + (radialFeedRate*dt)/Math.max(r0,1));
+    if(state.faceProgress >= 1){
+      state.length = Math.max(20, state.length - state.doc*2);
+      state.faceProgress = 0;
+      rebuildWorkpieceMesh();
+      positionTailstockAndSpout();
+    }
+  }
+
+  updateMotorSound();
+}
+
+function applyTurningCut(){
+  const {startX,endX} = carriageXRange();
+  const targetR = Math.max(1, state.diameter/2 - state.doc);
+  // rings from free end (index RING_COUNT, t=1) inward get cut as progress advances
+  const cutFrac = state.turnProgress;
+  for(let i=0;i<=RING_COUNT;i++){
+    const t = i/RING_COUNT; // 0 = chuck end, 1 = free end
+    const distFromFree = 1-t;
+    if(distFromFree <= cutFrac){
+      ringRadii[i] = Math.min(ringRadii[i], targetR);
+    }
+  }
+  rebuildWorkpieceMesh();
+}
+
+function triggerToolBreak(msg){
+  state.toolBroken = true;
+  state.running = false;
+  startBtn.disabled = false; stopBtn.disabled = true;
+  replaceToolBtn.disabled = false;
+  materialSel.disabled = false; diameterSlider.disabled = false;
+  setScreech(false);
+  toolBrokenVisual(true);
+  setStatus("TOOL BROKEN — " + msg, "bad");
+}
+function triggerOverheat(msg){
+  state.workpieceOverheated = true;
+  state.workpieceBroken = true;
+  state.running = false;
+  startBtn.disabled = false; stopBtn.disabled = true;
+  newStockBtn.disabled = false;
+  materialSel.disabled = false; diameterSlider.disabled = false;
+  setScreech(false);
+  workpieceBrokenVisual(true);
+  setStatus("WORKPIECE OVERHEATED — " + msg, "bad");
+}
+function triggerWorkpieceSnap(msg){
+  state.workpieceBroken = true;
+  state.running = false;
+  startBtn.disabled = false; stopBtn.disabled = true;
+  newStockBtn.disabled = false;
+  materialSel.disabled = false; diameterSlider.disabled = false;
+  setScreech(false);
+  workpieceBrokenVisual(true);
+  setStatus("WORKPIECE SNAPPED — " + msg, "bad");
+}
+
+/* ============================ READOUT UI ============================ */
+function updateReadout(){
+  $("vcVal").textContent = state.vc.toFixed(0)+" m/min";
+  $("fcVal").textContent = state.fc.toFixed(0)+" N";
+  $("pVal").textContent = state.power.toFixed(2)+" kW";
+  $("heatValNum").textContent = Math.min(100,state.heat).toFixed(0)+"%";
+  $("chatterValNum").textContent = state.chatterRisk.toFixed(0)+"%";
+  const heatPct = Math.min(100,state.heat);
+  const heatBar = $("heatMeter");
+  heatBar.style.width = heatPct+"%";
+  heatBar.style.background = heatPct>80?"var(--bad)":heatPct>55?"var(--warn)":"var(--good)";
+  const chBar = $("chatterMeter");
+  chBar.style.width = Math.min(100,state.chatterRisk)+"%";
+  chBar.style.background = state.chatterRisk>70?"var(--bad)":state.chatterRisk>40?"var(--warn)":"var(--good)";
+}
+
+/* ============================ COOLANT EMISSION ============================ */
+let coolantAccum = 0;
+function updateCoolant(dt){
+  if(state.coolant && !state.workpieceBroken){
+    coolantAccum += dt;
+    const rate = 1/60;
+    const spoutTip = new THREE.Vector3();
+    spoutNozzle.getWorldPosition(spoutTip);
+    while(coolantAccum > rate){
+      coolantAccum -= rate;
+      emitParticle(coolantParticles, spoutTip.clone(),
+        new THREE.Vector3((Math.random()-0.5)*4, -30-Math.random()*10, (Math.random()-0.5)*4), 0.7);
+    }
+  }
+  stepParticles(coolantParticles, dt, -180);
+  stepParticles(sparkParticles, dt, -120);
+  stepParticles(smokeParticles, dt, 12);
+
+  // rising smoke while overheating & no coolant
+  if(state.workpieceOverheated && !state.coolant){
+    if(Math.random()<0.3){
+      emitParticle(smokeParticles, new THREE.Vector3(workpiece?workpiece.position.x:60,36,0),
+        new THREE.Vector3((Math.random()-0.5)*6, 12+Math.random()*6, (Math.random()-0.5)*6), 1.2);
+    }
+  }
+}
+
+/* ============================ ANIMATION LOOP ============================ */
+let lastT = performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now-lastT)/1000);
+  lastT = now;
+
+  computePhysics(dt);
+  updateCarriagePosition();
+  updateCoolant(dt);
+  updateReadout();
+
+  // spindle + workpiece rotation (visual, scaled down from real RPM for legibility)
+  const spinSpeed = state.rpm/60 * Math.PI*2 * 0.12;
+  const applySpin = spinSpeed*dt;
+  spindleGroup.rotation.x += applySpin;
+  if(workpiece) workpiece.rotation.y += applySpin; // rotation about its local length axis after our alignment
+
+  // chatter shake
+  if(state.chatterRisk>55 && state.running){
+    const s = (state.chatterRisk-55)/45*0.6;
+    carriage.position.y = (Math.random()-0.5)*s;
+    if(workpiece) workpiece.position.y = 34 + (Math.random()-0.5)*s*0.5;
+  } else {
+    carriage.position.y = 0;
+    if(workpiece) workpiece.position.y = 34;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ============================ RESIZE ============================ */
+window.addEventListener("resize", ()=>{
+  camera.aspect = wrap.clientWidth/wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+});
+
+})();
+</script>
+</body>
+</html>
